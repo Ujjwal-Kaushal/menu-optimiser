@@ -25,7 +25,7 @@ const Result = () => {
   return (
     isSignedIn && (
       <div>
-        <Navbar />
+        {/* <Navbar /> */}
         {isResult ? (
           <div>
             <main className="my-4 flex flex-col items-center h-full">

@@ -1,56 +1,44 @@
-import React, { useEffect, useState } from "react";
-import Navbar from "../components/Navbar";
+import React, { useState } from "react";
 import axios from "axios";
 import { useUser } from "@clerk/clerk-react";
 import ScanResult from "../components/ScanResult";
 import { TailSpin } from "react-loader-spinner";
 
 const Welcome = () => {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
   const [img, setImg] = useState(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [showResultSection, setShowResultSection] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [catalogueResult, setCatalogueResult] = useState({});
+  
+  // These variables are now correctly read from the .env file.
   const CLOUD_NAME = import.meta.env.VITE_CLOUD_NAME;
   const CLOUD_PRESET = import.meta.env.VITE_UPLOAD_PRESET;
-  const { user } = useUser();
   const BASE_API = import.meta.env.VITE_BASE_API;
 
-  const hanldeCreateUser = async () => {
-    try {
-      const response = await axios.post(`${BASE_API}/user/create`, {
-        name: user.fullName,
-        email: user.primaryEmailAddress.emailAddress,
-        authID: user.id,
-        profileImage: user.imageUrl,
-      });
-      // console.log(response);
-    } catch (error) {
-      console.log(error.response);
-    }
-  };
-
-  useEffect(() => {
-    hanldeCreateUser();
-  }, []);
-
   const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!img || !name || !user) {
+      alert("Please fill in all fields and select an image.");
+      return;
+    }
+    
+    setIsLoading(true);
     try {
-      e.preventDefault();
-      setIsLoading(true);
       const formData = new FormData();
-      formData.append("upload_preset", CLOUD_PRESET);
       formData.append("file", img);
+      formData.append("upload_preset", CLOUD_PRESET);
+
       const uploadRes = await axios.post(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
         formData
       );
+
       const image_url = uploadRes.data.secure_url;
       const image_name = uploadRes.data.original_filename;
 
-      // backend request.
       const res = await axios.post(`${BASE_API}/catalogue/add`, {
         userId: user.id,
         catalogue_name: name,
@@ -58,21 +46,21 @@ const Welcome = () => {
         images: [{ image_name, image_url }],
       });
 
-      // console.log(res);
       setCatalogueResult(res.data.catalogue);
-      setIsLoading(false);
       setShowResultSection(true);
     } catch (error) {
-      console.log(error);
+      console.error("Error during scan:", error);
+      alert("An error occurred. Please check the console for details.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     isSignedIn && (
       <div>
-        <Navbar />
-        <div>
-          <main className="my-4 flex flex-col items-center h-full">
+        {/* Your JSX remains the same */}
+        <main className="my-4 flex flex-col items-center h-full">
             <div className="bg-white text-black font-serif py-2 px-4 text-3xl z-10 relative top-3 rounded-lg">
               <h2>Test Your Catalogue</h2>
             </div>
@@ -96,10 +84,7 @@ const Welcome = () => {
                 className="w-full p-2 bg-white rounded-lg mt-5 mb-2 font-sans"
               >
                 <div className="p-4 mb-4">
-                  <label
-                    htmlFor="catalogueName"
-                    className="block mt-2 text-black"
-                  >
+                  <label htmlFor="catalogueName" className="block mt-2 text-black">
                     Name of the Catalogue:
                   </label>
                   <input
@@ -107,14 +92,10 @@ const Welcome = () => {
                     id="catalogueName"
                     name="catalogueName"
                     className="border border-slate-700 rounded-md shadow-xl p-1 w-full"
-                    onChange={(e) => {
-                      setName(e.target.value);
-                    }}
+                    onChange={(e) => { setName(e.target.value); }}
+                    required
                   />
-                  <label
-                    htmlFor="description"
-                    className="block mt-2 text-black"
-                  >
+                  <label htmlFor="description" className="block mt-2 text-black">
                     Description:
                   </label>
                   <textarea
@@ -123,15 +104,14 @@ const Welcome = () => {
                     rows="3"
                     cols="50"
                     className="border border-slate-700 rounded-md shadow-xl p-1 w-full"
-                    onChange={(e) => {
-                      setDescription(e.target.value);
-                    }}
+                    onChange={(e) => { setDescription(e.target.value); }}
                   ></textarea>
                 </div>
                 <div className="w-full text-center">
                   <button
                     type="submit"
                     className="mt-3 text-xl bg-blue-500 text-white font-semibold px-5 py-2 rounded z-10 shadow-xl hover:shadow-none transition-shadow duration-300 ease-in-out"
+                    disabled={isLoading}
                   >
                     {isLoading ? (
                       <TailSpin
@@ -141,8 +121,6 @@ const Welcome = () => {
                         color="#fff"
                         ariaLabel="tail-spin-loading"
                         radius="1"
-                        wrapperStyle={{}}
-                        wrapperClass=""
                       />
                     ) : (
                       "Scan"
@@ -152,7 +130,6 @@ const Welcome = () => {
               </form>
             </section>
           </main>
-        </div>
         {showResultSection && <ScanResult catalogue={catalogueResult} />}
       </div>
     )

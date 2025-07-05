@@ -40,7 +40,7 @@ const Dashboard = () => {
   return (
     <div>
       <>
-        <Navbar />
+        {/* <Navbar /> */}
         <main className="my-4 flex flex-col items-center h-full">
           <div className="bg-white text-black py-2 px-4 text-3xl z-10 relative top-3 rounded-lg font-serif">
             <h2>User Information</h2>

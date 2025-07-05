@@ -1,148 +1,106 @@
-const OpenAI = require("openai");
+// server/services/vision.js (REPLACED WITH LLAVA)
+
+const Replicate = require("replicate");
 require("dotenv").config();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
+// Initialize the Replicate client with your API token
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN,
+});
 
-// const IMAGES = [
-//   {
-//     type: "image_url",
-//     image_url: {
-//       url: "https://res.cloudinary.com/df3lxtjcl/image/upload/v1706621084/hqnz3aiowtfopakxlgc7.jpg",
-//     },
-//   },
-//   {
-//     type: "image_url",
-//     image_url: {
-//       url: "https://res.cloudinary.com/df3lxtjcl/image/upload/v1706621074/zeokmnmqw67qk3l4wuy2.jpg",
-//     },
-//   },
-// ];
+// This is a carefully engineered prompt to force the AI to return clean JSON.
+const createPrompt = () => {
+  return `Analyze the provided catalogue image. Your task is to score it on several parameters.
+  Respond with ONLY a valid JSON object, and nothing else. Do not add any text before or after the JSON.
+  The JSON object must have these exact keys: "ProductDescriptions", "PricingInformation", "ProductImages", "LayoutAndDesign", "DiscountsAndPromotions", "BrandConsistency", "ContactInformationAndCallToAction", "TyposAndGrammar", "LegalCompliance", and "areaOfImprovement".
+  
+  For the first 9 keys, provide an integer score between 0 and 100.
+  - If a category is excellent, score it high (e.g., 95).
+  - If a category is missing (e.g., no prices are visible), score it 0.
+  - If a category is poor, score it low.
+  
+  For the "areaOfImprovement" key, provide a concise string (2-3 sentences) suggesting how to make the catalogue better. Base your suggestions on the lowest scores.
+  
+  Example of the required output format:
+  {
+    "ProductDescriptions": 85,
+    "PricingInformation": 0,
+    "ProductImages": 90,
+    "LayoutAndDesign": 75,
+    "DiscountsAndPromotions": 20,
+    "BrandConsistency": 95,
+    "ContactInformationAndCallToAction": 50,
+    "TyposAndGrammar": 98,
+    "LegalCompliance": 70,
+    "areaOfImprovement": "The catalogue lacks clear pricing information. Adding prices and a stronger call-to-action would significantly improve its effectiveness."
+  }
+  
+  Now, analyze the image I provide.`;
+};
 
 async function scanCatalogueWithAI({ images }) {
-  let IMAGES = [];
-  images.forEach((x) => {
-    // console.log(x);
-    IMAGES.push({
-      type: "image_url",
-      image_url: {
-        url: x.image_url,
-      },
-    });
-  });
+  if (!images || images.length === 0) {
+    throw new Error("No images provided for scanning.");
+  }
 
-  // console.log(IMAGES);
+  // LLaVA processes one image at a time. We'll use the first uploaded image.
+  const primaryImageUrl = images[0].image_url;
+  const prompt = createPrompt();
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4-vision-preview",
-    messages: [
-      {
-        role: "system",
-        content: [
-          {
-            type: "text",
-            text: "You are a system that always extracts information from an image in just a json_format",
-          },
-        ],
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Catalog Scoring Mechanism Parameters: Product Descriptions, Pricing Information, Product Images,Layout and Design, Discounts and Promotions, Brand Consistency, Contact Information and Call-to-Action,Typos and Grammar,Legal Compliance, AreaOfImprovement. Following image urls are the images of a catalogue and now use this mechanism and apply it to this catalogue and score this catalogue between 0 and 100 in first 9 parameters, provide just the scores for each property and provide a helpful message for the 'AreaOfImprovement' parameter. Provide a single set of scores because the images belong to a single catalogue. If any of the images does not seem to be of a catalogue, just provide the message in the areaOfImprovement and give 0 to rest of the scores, but don't do this for unclear, or incomplete catalogues. The images also may not be a complete catalogue, just provide the scores based on the availability.",
-          },
-          ...IMAGES,
-          //   {
-          //     type: "image_url",
-          //     image_url: {
-          //       url: "https://res.cloudinary.com/df3lxtjcl/image/upload/v1706621084/hqnz3aiowtfopakxlgc7.jpg",
-          //     },
-          //   },
-          //   {
-          //     type: "image_url",
-          //     image_url: {
-          //       url: "https://res.cloudinary.com/df3lxtjcl/image/upload/v1706621074/zeokmnmqw67qk3l4wuy2.jpg",
-          //     },
-          //   },
-        ],
-      },
-    ],
-    max_tokens: 200,
-  });
+  console.log("Sending image to LLaVA model for analysis...");
 
-  let result = response.choices[0].message.content;
-  console.log(result);
-
-  const gptResponse = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo-0613",
-    messages: [
+  try {
+    const output = await replicate.run(
+      // This is the specific identifier for the LLaVA-13B model on Replicate
+      "yorickvp/llava-13b:e272157381e2a3bf12df3a8edd1f38d1dbd736bbb7437277c8b34175f8fce358",
       {
-        role: "user",
-        content:
-          "Extract the properties from this object" +
-          result +
-          "and based upon that call createResponseObject function.",
-      },
-    ],
-    functions: [
-      {
-        name: "createResponseObject",
-        parameters: {
-          type: "object",
-          properties: {
-            ProductDescriptions: {
-              type: "integer",
-            },
-            PricingInformation: {
-              type: "integer",
-            },
-            ProductImages: {
-              type: "integer",
-            },
-            LayoutAndDesign: {
-              type: "integer",
-            },
-            DiscountsAndPromotions: {
-              type: "integer",
-            },
-            BrandConsistency: {
-              type: "integer",
-            },
-            ContactInformationAndCallToAction: {
-              type: "integer",
-            },
-            TyposAndGrammar: {
-              type: "integer",
-            },
-            LegalCompliance: {
-              type: "integer",
-            },
-            areaOfImprovement: {
-              type: "string",
-            },
-          },
-          required: [
-            "ProductDescriptions",
-            "PricingInformation",
-            "ProductImages",
-            "LayoutAndDesign",
-            "DiscountsAndPromotions",
-            "BrandConsistency",
-            "ContactInformationAndCallToAction",
-            "TyposAndGrammar",
-            "LegalCompliance",
-          ],
+        input: {
+          image: primaryImageUrl,
+          prompt: prompt,
+          max_tokens: 1024, // Allow enough space for the JSON response
+          temperature: 0.2, // Lower temperature makes the output more predictable and less random
         },
-      },
-    ],
-    function_call: { name: "createResponseObject" },
-  });
+      }
+    );
 
-  const functionCall = gptResponse.choices[0].message.function_call;
-  const json = JSON.parse(functionCall.arguments);
+    // The model output is an array of strings; we join them into a single string.
+    const resultString = output.join("").trim();
+    console.log("Raw response from LLaVA:", resultString);
 
-  console.log(json);
-  return json;
-  // return images;
+    // Attempt to parse the string as JSON.
+    const jsonResult = JSON.parse(resultString);
+    console.log("Successfully parsed JSON from LLaVA:", jsonResult);
+
+    // --- IMPORTANT: Validate the JSON to prevent errors later ---
+    const requiredKeys = ["ProductDescriptions", "PricingInformation", "ProductImages", "LayoutAndDesign", "DiscountsAndPromotions", "BrandConsistency", "ContactInformationAndCallToAction", "TyposAndGrammar", "LegalCompliance"];
+    for (const key of requiredKeys) {
+      if (typeof jsonResult[key] !== 'number') {
+        console.warn(`LLaVA returned an invalid or missing value for ${key}. Defaulting to 0.`);
+        jsonResult[key] = 0; // Provide a safe default if a score is missing or not a number
+      }
+    }
+    if (typeof jsonResult.areaOfImprovement !== 'string') {
+        jsonResult.areaOfImprovement = "The AI model could not provide a suggestion for improvement.";
+    }
+
+    return jsonResult;
+
+  } catch (error) {
+    console.error("Error processing with LLaVA or parsing its response:", error);
+    // Return a default error object if the AI fails, preventing the app from crashing.
+    return {
+      ProductDescriptions: 0,
+      PricingInformation: 0,
+      ProductImages: 0,
+      LayoutAndDesign: 0,
+      DiscountsAndPromotions: 0,
+      BrandConsistency: 0,
+      ContactInformationAndCallToAction: 0,
+      TyposAndGrammar: 0,
+      LegalCompliance: 0,
+      areaOfImprovement: "There was an error processing the catalogue with the AI model. The AI may have returned an invalid format. Please try again.",
+    };
+  }
 }
+
 module.exports = { scanCatalogueWithAI };
