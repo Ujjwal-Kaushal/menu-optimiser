@@ -13,53 +13,51 @@ const Welcome = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [catalogueResult, setCatalogueResult] = useState({});
   
-  // These variables are now correctly read from the .env file.
   const CLOUD_NAME = import.meta.env.VITE_CLOUD_NAME;
   const CLOUD_PRESET = import.meta.env.VITE_UPLOAD_PRESET;
   const BASE_API = import.meta.env.VITE_BASE_API;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!img || !name || !user) {
-      alert("Please fill in all fields and select an image.");
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", img);
-      formData.append("upload_preset", CLOUD_PRESET);
+  // In frontend/src/pages/Welcome.jsx
 
-      const uploadRes = await axios.post(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        formData
-      );
+// frontend/src/pages/Welcome.jsx -> handleSubmit function
 
-      const image_url = uploadRes.data.secure_url;
-      const image_name = uploadRes.data.original_filename;
+// frontend/src/pages/Welcome.jsx -> handleSubmit function
 
-      const res = await axios.post(`${BASE_API}/catalogue/add`, {
-        userId: user.id,
-        catalogue_name: name,
-        catalogue_description: description,
-        images: [{ image_name, image_url }],
-      });
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!img || !name || !user) {
+    alert("Please fill in all fields and select an image.");
+    return;
+  }
+  
+  setIsLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("image", img); // Key is 'image' to match the backend
+    formData.append("userId", user.id);
+    formData.append("catalogue_name", name);
+    formData.append("catalogue_description", description);
 
-      setCatalogueResult(res.data.catalogue);
-      setShowResultSection(true);
-    } catch (error) {
-      console.error("Error during scan:", error);
-      alert("An error occurred. Please check the console for details.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // --- FIX: Call the original '/catalogue/add' endpoint ---
+    const res = await axios.post(`${BASE_API}/catalogue/add`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    setCatalogueResult(res.data.catalogue);
+    setShowResultSection(true);
+  } catch (error) {
+    console.error("Error during scan process:", error);
+    alert("An error occurred. Please check the console for details.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     isSignedIn && (
       <div>
-        {/* Your JSX remains the same */}
         <main className="my-4 flex flex-col items-center h-full">
             <div className="bg-white text-black font-serif py-2 px-4 text-3xl z-10 relative top-3 rounded-lg">
               <h2>Test Your Catalogue</h2>
@@ -69,9 +67,7 @@ const Welcome = () => {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
-                    setImg(e.target.files[0]);
-                  }}
+                  onChange={(e) => { setImg(e.target.files[0]); }}
                 />
               </div>
             </section>
@@ -113,18 +109,7 @@ const Welcome = () => {
                     className="mt-3 text-xl bg-blue-500 text-white font-semibold px-5 py-2 rounded z-10 shadow-xl hover:shadow-none transition-shadow duration-300 ease-in-out"
                     disabled={isLoading}
                   >
-                    {isLoading ? (
-                      <TailSpin
-                        visible={true}
-                        height="30"
-                        width="80"
-                        color="#fff"
-                        ariaLabel="tail-spin-loading"
-                        radius="1"
-                      />
-                    ) : (
-                      "Scan"
-                    )}
+                    {isLoading ? <TailSpin visible={true} height="30" width="80" color="#fff" /> : "Scan"}
                   </button>
                 </div>
               </form>

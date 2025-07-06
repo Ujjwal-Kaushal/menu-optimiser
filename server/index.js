@@ -1,32 +1,39 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const { ConnectToDB } = require("./config/database");
-const PORT = process.env.PORT | 3000;
+// server/index.js
 
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+
+// --- Create the Express App ---
 const app = express();
+const PORT = process.env.PORT || 3001;
 
-// middlewares
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// --- Middleware ---
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // Parse JSON bodies
 
-//routes
-app.get("/", (req, res) => {
-  res.status(200).json({ message: "Home route working " });
+// --- Database Connection ---
+mongoose.connect(process.env.DATABASE_URI)
+.then(() => console.log("MongoDB connected successfully."))
+.catch((err) => console.error("MongoDB connection error:", err));
+
+// --- Import Consolidated Routes ---
+const catalogueRoutes = require('./routes/catalogue');
+const userRoutes = require('./routes/user');
+
+// --- Use Routes with Base Paths ---
+// All requests to /catalogue/... will be handled by catalogueRoutes
+app.use('/catalogue', catalogueRoutes);
+// All requests to /user/... will be handled by userRoutes
+app.use('/user', userRoutes);
+
+// --- Root Route for Health Check ---
+app.get('/', (req, res) => {
+    res.send('Clean Catalogue API is running!');
 });
 
-app.use("/", require("./routes/user/createUser"));
-app.use("/", require("./routes/user/getUser"));
-app.use("/catalogue", require("./routes/catalogue/getCatalogue"));
-app.use("/catalogue", require("./routes/catalogue/addCatalogue"));
-app.use("/catalogue", require("./routes/catalogue/getAllCataloguesOfUser"));
-
-const startServer = async () => {
-  await ConnectToDB();
-  app.listen(PORT, () => {
-    console.log(`Server running on port : ${PORT}`);
-  });
-};
-
-startServer();
+// --- Start the Server ---
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});

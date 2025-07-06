@@ -1,31 +1,32 @@
-const { User } = require("../../models/User");
-const bcrypt = require("bcryptjs");
+// server/controllers/user/createUser.js
 
-const createUserController = async (req, res) => {
+const { User } = require("../../models/User");
+
+const createUser = async (req, res) => {
   try {
     const { name, email, authID } = req.body;
-    const existingUser = await User.findOne({ email: email });
+
+    // Check if user already exists based on their Clerk authID
+    const existingUser = await User.findOne({ authID });
 
     if (existingUser) {
-      return res.status(400).json({
-        message: "User already exists in database",
-        data: existingUser,
-      });
+      return res.status(200).json({ message: "User already exists in DB." });
     }
 
-    const newUser = await new User({
+    // If user does not exist, create a new one
+    const newUser = new User({
       name,
       email,
       authID,
     });
 
     await newUser.save();
-    return res
-      .status(201)
-      .json({ message: "User added to database", data: newUser });
+    return res.status(201).json({ message: "User created and synced successfully.", user: newUser });
+
   } catch (error) {
-    console.log(error);
+    console.error("Error creating or syncing user:", error);
+    return res.status(500).json({ message: "Server error during user sync." });
   }
 };
 
-module.exports = { createUserController };
+module.exports = { createUser };
